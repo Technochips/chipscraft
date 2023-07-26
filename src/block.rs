@@ -10,7 +10,7 @@ pub struct BlockState
 pub const BLOCKS: [BlockState; 50] =
 [
 	BlockState { place_op_only: false, destroy_op_only: false, fall: false, slab: None, fluid: true }, // Air
-	BlockState { place_op_only: true, destroy_op_only: true, fall: false, slab: None, fluid: false }, // Stone
+	BlockState { place_op_only: false, destroy_op_only: false, fall: false, slab: None, fluid: false }, // Stone
 	BlockState { place_op_only: false, destroy_op_only: false, fall: false, slab: None, fluid: false }, // Grass
 	BlockState { place_op_only: false, destroy_op_only: false, fall: false, slab: None, fluid: false }, // Dirt
 	BlockState { place_op_only: false, destroy_op_only: false, fall: false, slab: None, fluid: false }, // Cobblestone
