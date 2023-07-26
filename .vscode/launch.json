@@ -1,0 +1,35 @@
+{
+	"version": "0.2.0",
+	"configurations":
+	[
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug",
+			"cargo":
+			{
+				"args":
+				[
+					"build"
+				]
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Release",
+			"cargo":
+			{
+				"args":
+				[
+					"build",
+					"--release"
+				]
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}
