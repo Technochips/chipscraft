@@ -48,7 +48,7 @@ impl Server
 					let public = server.public;
 					let salt = server.salt.clone();
 					let port = server.port;
-					if let Ok(body) = reqwest::get(format!("{}?port={}&max={}&name={}&public={}&version=7&salt={}&users={}&software=technocraft\r\n", heartbeat_address, port, max_clients, name, if public { "True" } else { "False" }, salt, client_count)).await
+					if let Ok(body) = reqwest::get(format!("{}?port={}&max={}&name={}&public={}&version=7&salt={}&users={}&software=chipscraft\r\n", heartbeat_address, port, max_clients, name, if public { "True" } else { "False" }, salt, client_count)).await
 					{
 						if running_first_time
 						{

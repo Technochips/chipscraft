@@ -98,6 +98,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chipscraft"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "codepage-437",
+ "flate2",
+ "http",
+ "md5",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "urlencoding",
+]
+
+[[package]]
 name = "codepage-437"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -879,25 +898,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "technocraft"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "byteorder",
- "codepage-437",
- "flate2",
- "http",
- "md5",
- "rand",
- "reqwest",
- "serde",
- "serde_derive",
- "serde_json",
- "tokio",
- "urlencoding",
 ]
 
 [[package]]
