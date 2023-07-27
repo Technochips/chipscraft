@@ -3,29 +3,110 @@ use crate::client::Client;
 use crate::client::ClientMode;
 use crate::level::Level;
 use crate::packet::Packet;
+use rand::Rng;
 use std::collections::HashMap;
-use tokio::sync::mpsc::UnboundedSender;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Mutex;
+use tokio::time;
 
 pub struct Server
 {
 	pub name: String,
 	pub motd: String,
 	pub max_clients: i8,
+	pub client_count: i8,
 	pub clients: HashMap<i8, Client>,
-	pub level: Level
+	pub level: Level,
+	pub running: bool,
+	pub public: bool,
+	pub verify_players: bool,
+	pub heartbeat: bool,
+	pub heartbeat_address: String,
+	pub port: u16,
+	pub salt: String
 }
 impl Server
 {
-	pub fn new(max_clients: i8, level: Level, name: String, motd: String) -> Self
+	pub async fn heartbeat(server: Arc<Mutex<Self>>)
 	{
+		let mut interval = time::interval(Duration::from_secs(45));
+		let mut running_first_time = true;
+		interval.tick().await;
+		loop
+		{
+			{
+				let server = server.lock().await;
+				if server.heartbeat
+				{
+					let heartbeat_address = server.heartbeat_address.clone();
+					let name = urlencoding::encode(&server.name.clone()).into_owned();
+					let max_clients = server.max_clients;
+					let client_count = server.client_count;
+					let public = server.public;
+					let salt = server.salt.clone();
+					let port = server.port;
+					if let Ok(body) = reqwest::get(format!("{}?port={}&max={}&name={}&public={}&version=7&salt={}&users={}&software=technocraft\r\n", heartbeat_address, port, max_clients, name, if public { "True" } else { "False" }, salt, client_count)).await
+					{
+						if running_first_time
+						{
+							if let Ok(text) = body.text().await
+							{
+								println!("heartbeat response: {}", text);
+								running_first_time = false;
+							}
+						}
+					}
+				}
+			}
+			interval.tick().await;
+			if !server.lock().await.running
+			{
+				break;
+			}
+		}
+	}
+	pub async fn start_ticks(server: &Arc<Mutex<Self>>)
+	{
+		{
+			let server = server.clone();
+			tokio::spawn(Server::heartbeat(server));
+		}
+	}
+	pub fn new(max_clients: i8, level: Level, name: String, motd: String, public: bool, verify_players: bool, heartbeat: bool, heartbeat_address: String, port: u16) -> Self
+	{
+		const BASE62: [char; 62] = [
+			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+			'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+			'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd',
+			'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+			'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x',
+			'y', 'z',
+		]; // stupid strings
+		let mut rng = rand::thread_rng();
+		let mut salt = String::new();
+		for _ in 0..16
+		{
+			salt.push(BASE62[rng.gen_range(0..62)]);
+		}
 		Self
 		{
 			name,
 			motd,
 			max_clients,
+			client_count: 0,
 			clients: HashMap::new(),
-			level
+			level,
+			running: true,
+			public,
+			verify_players,
+			heartbeat,
+			heartbeat_address,
+			port,
+			salt
 		}
 	}
 	pub fn first_free_space(&self) -> i8
@@ -65,6 +146,7 @@ impl Server
 		{
 			return;
 		};
+		self.client_count -= 1;
 		self.clients.remove(&id);
 		self.broadcast_packet(id, Packet::Despawn { id: id });
 		self.broadcast_system_message(id, format!("{} left", username));
@@ -252,6 +334,7 @@ impl Server
 				packet_sender.send(Packet::Spawn { id: i, name: client.username.clone(), x: client.x, y: client.y, z: client.z, yaw: client.yaw, pitch: client.pitch })?;
 			}
 		}
+		self.client_count += 1;
 		self.clients.insert(id, Client { username: username.clone(), packet_sender, x, y, z, yaw, pitch, mode: ClientMode::Normal } );
 		self.broadcast_system_message(id, format!("{} joined", username.clone()));
 		self.broadcast_packet(id, Packet::Spawn { id: id, name: username, x, y, z, yaw, pitch});
@@ -259,6 +342,7 @@ impl Server
 	}
 	pub fn stop(&mut self)
 	{
+		self.running = false;
 		self.broadcast_packet(-1, Packet::Disconnect { reason: "Stopping server".to_string() });
 		if self.level.save("level.dat".to_string()).is_err()
 		{

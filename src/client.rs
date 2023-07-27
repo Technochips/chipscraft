@@ -1,9 +1,9 @@
+use crate::io;
 use crate::io::AsyncReadClassicExt;
 use crate::io::AsyncWriteClassicExt;
 use crate::level::SaveType;
 use crate::packet::Packet;
 use crate::server::Server;
-use crate::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::tcp::OwnedReadHalf;
@@ -60,11 +60,20 @@ impl Client
 	pub async fn init_client(mut stream: TcpStream, ip: SocketAddr, server: &Arc<Mutex<Server>>) -> Option<(i8, String, OwnedReadHalf)>
 	{
 		let username;
-		if let Ok(Packet::Identification { protocol, name, data: _, usertype: _ }) = stream.read_packet().await
+		if let Ok(Packet::Identification { protocol, name, data: key, usertype: _ }) = stream.read_packet().await
 		{
 			if protocol != 0x07
 			{
 				return None;
+			}
+			if server.lock().await.verify_players
+			{
+				if key != format!("{:?}", md5::compute(format!("{}{}", server.lock().await.salt.clone(), name)))
+				{
+					println!("{} tried to connect but couldn't verify from {}", name, ip);
+					let _ = stream.write_packet(Packet::Disconnect { reason: "Could not verify".to_string() }).await;
+					return None;
+				}
 			}
 			username = name;
 		}

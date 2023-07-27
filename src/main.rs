@@ -10,6 +10,7 @@ mod server;
 use crate::client::Client;
 use crate::level::Level;
 use crate::server::Server;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -20,13 +21,16 @@ async fn main()
 {
 	let config = config::load_config();
 
-	let listener: TcpListener = TcpListener::bind(config.address.clone()).await.unwrap();
+	let address: SocketAddr = config.address.parse().expect("could not parse address");
+
+	let listener: TcpListener = TcpListener::bind(address).await.unwrap();
 	let mut level = Level::new();
 	if level.load(format!("{}.dat", config.level_name)).is_err()
 	{
 		level.generate(config.level_size_x, config.level_size_y, config.level_size_z, config.level_type, config.level_seed).unwrap();
 	}
-	let server = Arc::new(Mutex::new(Server::new(config.max_clients, level, config.name.clone(), config.motd.clone())));
+	let server = Arc::new(Mutex::new(Server::new(config.max_clients, level, config.name, config.motd, config.public, config.verify_players, config.heartbeat, config.heartbeat_address, address.port())));
+	Server::start_ticks(&server).await;
 	let s = server.clone();
 	println!("ready");
 	tokio::select! 
