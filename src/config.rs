@@ -8,7 +8,6 @@ use std::time::SystemTime;
 
 fn default_name() -> String { "Minecraft server".to_string() }
 fn default_motd() -> String { "Have fun.".to_string() }
-fn default_public() -> bool { false }
 fn default_max_clients() -> i8 { 20 }
 fn default_address() -> String { "0.0.0.0:25565".to_string() }
 fn default_level_name() -> String { "level".to_string() }
@@ -18,8 +17,9 @@ fn default_level_size_z() -> i16 { 128 }
 fn default_level_type() -> GenerationType { GenerationType::Flat }
 fn default_level_seed() -> u64 { SystemTime::now().duration_since(time::UNIX_EPOCH).unwrap().as_secs() }
 fn default_heartbeat() -> bool { false }
-fn default_heartbeat_address() -> String { "https://classicube.net".to_string() }
+fn default_heartbeat_address() -> String { "".to_string() }
 fn default_verify_players() -> bool { false }
+fn default_public() -> bool { false }
 
 #[derive(Serialize, Deserialize)]
 pub struct Config
@@ -28,8 +28,6 @@ pub struct Config
 	pub name: String,
 	#[serde(default = "default_motd")]
 	pub motd: String,
-	#[serde(default = "default_public")]
-	pub public: bool,
 	#[serde(default = "default_max_clients")]
 	pub max_clients: i8,
 	#[serde(default = "default_address")]
@@ -51,7 +49,9 @@ pub struct Config
 	#[serde(default = "default_heartbeat_address")]
 	pub heartbeat_address: String,
 	#[serde(default = "default_verify_players")]
-	pub verify_players: bool
+	pub verify_players: bool,
+	#[serde(default = "default_public")]
+	pub public: bool
 }
 
 impl Default for Config
@@ -62,7 +62,6 @@ impl Default for Config
 		{
 			name: default_name(),
 			motd: default_motd(),
-			public: default_public(),
 			max_clients: default_max_clients(),
 			address: default_address(),
 			level_name: default_level_name(),
@@ -73,7 +72,8 @@ impl Default for Config
 			level_seed: default_level_seed(),
 			heartbeat: default_heartbeat(),
 			heartbeat_address: default_heartbeat_address(),
-			verify_players: default_verify_players()
+			verify_players: default_verify_players(),
+			public: default_public()
 		}
     }
 }
