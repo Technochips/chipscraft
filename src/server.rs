@@ -1,10 +1,14 @@
 use crate::block;
+use crate::chat;
 use crate::client::Client;
 use crate::client::ClientMode;
+use crate::command::CommandList;
 use crate::level::Level;
 use crate::packet::Packet;
+use crate::userdata::UserData;
 use rand::Rng;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::error::SendError;
@@ -19,7 +23,9 @@ pub struct Server
 	pub max_clients: i8,
 	pub client_count: i8,
 	pub clients: HashMap<i8, Client>,
+	pub commands: CommandList,
 	pub level: Level,
+	pub user_data: UserData,
 	pub running: bool,
 	pub public: bool,
 	pub verify_players: bool,
@@ -75,7 +81,7 @@ impl Server
 			tokio::spawn(Server::heartbeat(server));
 		}
 	}
-	pub fn new(max_clients: i8, level: Level, name: String, motd: String, public: bool, verify_players: bool, heartbeat: bool, heartbeat_address: String, port: u16) -> Self
+	pub fn new(max_clients: i8, level: Level, name: String, motd: String, user_data: UserData, public: bool, verify_players: bool, heartbeat: bool, heartbeat_address: String, port: u16) -> Self
 	{
 		const BASE62: [char; 62] = [
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -99,7 +105,9 @@ impl Server
 			max_clients,
 			client_count: 0,
 			clients: HashMap::new(),
+			commands: CommandList::new(),
 			level,
+			user_data,
 			running: true,
 			public,
 			verify_players,
@@ -109,20 +117,20 @@ impl Server
 			salt
 		}
 	}
-	pub fn first_free_space(&self) -> i8
+	pub fn first_free_space(&self) -> Option<i8>
 	{
-		let mut id = -1;
+		let mut id = None;
 		for i in 0..self.max_clients
 		{
 			if self.clients.get(&i).is_none()
 			{
-				id = i;
+				id = Some(i);
 				break;
 			}
 		}
 		id
 	}
-	pub fn username_index(&self, username: &String) -> i8
+	pub fn get_index_from_username(&self, username: &str) -> Option<i8>
 	{
 		for i in 0..self.max_clients
 		{
@@ -130,11 +138,25 @@ impl Server
 			{
 				if client.username.eq(username)
 				{
-					return i;
+					return Some(i);
 				}
 			}
 		}
-		-1
+		None
+	}
+	pub fn get_client_from_username(&self, username: &str) -> Option<&Client>
+	{
+		for i in 0..self.max_clients
+		{
+			if let Some(client) = self.clients.get(&i)
+			{
+				if client.username.eq(username)
+				{
+					return Some(client);
+				}
+			}
+		}
+		None
 	}
 	pub fn disconnected(&mut self, id: i8)
 	{
@@ -149,7 +171,11 @@ impl Server
 		self.client_count -= 1;
 		self.clients.remove(&id);
 		self.broadcast_packet(id, Packet::Despawn { id: id });
-		self.broadcast_system_message(id, format!("{} left", username));
+		self.broadcast_system_message(id, &format!("{} left", username));
+	}
+	pub fn kick(&mut self, id: i8, reason: String)
+	{
+		let _ = self.send_packet(id, Packet::Disconnect { reason });
 	}
 	pub fn send_packet(&mut self, cid: i8, packet: Packet) -> Result<(), SendError<Packet>>
 	{
@@ -189,10 +215,10 @@ impl Server
 		{
 			if (block as usize) < block::BLOCKS.len()
 			{
-				let mode = if id < 0 { ClientMode::Operator } else if let Some(client) = self.clients.get(&id) { client.mode } else { ClientMode::Normal };
+				let (mode, restricted) = if id < 0 { (ClientMode::Operator, false) } else if let Some(client) = self.clients.get(&id) { (client.mode, self.user_data.restricted.contains(&client.username, &client.ip.ip())) } else { (ClientMode::Normal, true) };
 				let placed_block = &block::BLOCKS[block as usize];
 				let replaced_block = &block::BLOCKS[self.level.get_block(x, y, z) as usize];
-				if (!placed_block.place_op_only && !replaced_block.destroy_op_only) || mode == ClientMode::Operator
+				if ((!placed_block.place_op_only && !replaced_block.destroy_op_only) || mode == ClientMode::Operator) && !restricted
 				{
 					place_block = true;
 				}
@@ -307,20 +333,61 @@ impl Server
 			}
 		}
 	}
-	fn broadcast_log_message(&mut self, id: i8, logid: i8, message: String)
+	fn broadcast_log_message(&mut self, id: i8, logid: i8, message: &str)
 	{
-		println!("{}:{}", logid, message);
-		self.broadcast_packet(id, Packet::Message { id: id, message: message.to_string() });
+		for line in chat::wrap_and_clean(&message, if id < 0 { 'e' } else { 'f' })
+		{
+			println!("{}:{}", logid, line);
+			self.broadcast_packet(id, Packet::Message { id: id, message: line.to_string() });
+		}
 	}
-	pub fn broadcast_message(&mut self, id: i8, message: String)
+	pub fn broadcast_message(&mut self, id: i8, message: &str)
 	{
 		self.broadcast_log_message(id, id, message);
 	}
-	pub fn broadcast_system_message(&mut self, id: i8, message: String)
+	pub fn broadcast_system_message(&mut self, id: i8, message: &str)
 	{
 		self.broadcast_log_message(-1, id, message);
 	}
-	pub fn spawn(&mut self, id: i8, username: String, packet_sender: UnboundedSender<Packet>) -> Result<(), SendError<Packet>>
+	pub fn send_message(&mut self, id: i8, toid:i8, message: &str)
+	{
+		for line in chat::wrap_and_clean(message, if id < 0 { 'e' } else { 'f' })
+		{
+			println!("{}:to {}:{}", id, toid, line);
+			let _ = self.send_packet(toid, Packet::Message { id, message: line.to_string() }); // fuck man
+		}
+	}
+	pub fn command(&mut self, id: i8, name: String, args: Vec<&str>)
+	{
+		let (username, mode): (&str, ClientMode) = if id == -1 { ("Console", ClientMode::Operator) } else 
+		{
+			if let Some(client) = self.clients.get(&id)
+			{
+				(&client.username, client.mode)
+			}
+			else
+			{
+				return;
+			}
+		};
+		println!("{}:{} is running command /{} {}", id, username, name, args.join(" "));
+		if let Some(command) = self.commands.get(&name)
+		{
+			if command.ops_only && mode != ClientMode::Operator
+			{
+				self.send_message(-1, id, "You do not have permission to use that command.");
+			}
+			else if let Err(err) = (command.run)(self, id, args, mode)
+			{
+				self.send_message(-1, id, &err);
+			}
+		}
+		else
+		{
+			self.send_message(-1, id, "Unknown command. See /help.");
+		}
+	}
+	pub fn spawn(&mut self, id: i8, ip: SocketAddr, username: String, mode: ClientMode, packet_sender: UnboundedSender<Packet>) -> Result<(), SendError<Packet>>
 	{
 		let x = self.level.spawn_x;
 		let y = self.level.spawn_y;
@@ -335,8 +402,8 @@ impl Server
 			}
 		}
 		self.client_count += 1;
-		self.clients.insert(id, Client { username: username.clone(), packet_sender, x, y, z, yaw, pitch, mode: ClientMode::Normal } );
-		self.broadcast_system_message(id, format!("{} joined", username.clone()));
+		self.clients.insert(id, Client { ip, username: username.clone(), packet_sender, x, y, z, yaw, pitch, mode } );
+		self.broadcast_system_message(id, &format!("{} joined", username.clone()));
 		self.broadcast_packet(id, Packet::Spawn { id: id, name: username, x, y, z, yaw, pitch});
 		Ok(())
 	}

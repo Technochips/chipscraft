@@ -77,34 +77,36 @@ impl Default for Config
 		}
     }
 }
-
-const CONFIG_FILE: &str = "properties.json";
-
-pub fn load_config() -> Config
+impl Config
 {
-	let config;
+	const FILE: &str = "properties.json";
 
-	if let Ok(file) = File::open(CONFIG_FILE)
+	pub fn load() -> Self
 	{
-		config = serde_json::from_reader(file).unwrap();
-	}
-	else
-	{
-		println!("could not open config file. loading default settings.");
-		config = Config::default();
-	}
+		let config;
 
-	if let (Ok(json), Ok(mut file)) = (serde_json::to_string_pretty(&config), File::create("properties.json"))
-	{
-		if file.write(json.as_bytes()).is_err()
+		if let Ok(file) = File::open(Config::FILE)
 		{
-			println!("could not write config file.");
+			config = serde_json::from_reader(file).unwrap();
 		}
-	}
-	else
-	{
-		println!("could not parse config file.");
-	}
+		else
+		{
+			println!("could not open config file. loading default settings.");
+			config = Config::default();
+		}
 
-	config
+		if let (Ok(json), Ok(mut file)) = (serde_json::to_string_pretty(&config), File::create(Config::FILE))
+		{
+			if file.write(json.as_bytes()).is_err()
+			{
+				println!("could not write config file.");
+			}
+		}
+		else
+		{
+			println!("could not create config file.");
+		}
+
+		config
+	}
 }

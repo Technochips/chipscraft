@@ -7,7 +7,7 @@ pub enum Packet
 		protocol: u8,
 		name: String,
 		data: String,
-		usertype: u8
+		user_mode: u8
 	},
 	Ping,
 	LevelStart,
@@ -92,8 +92,8 @@ pub enum Packet
 	{
 		reason: String
 	},
-	UpdateUserType
+	UpdateUserMode
 	{
-		usertype: u8
+		user_mode: u8
 	}
 }

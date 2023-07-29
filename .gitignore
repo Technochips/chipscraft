@@ -1,3 +1,7 @@
 /target
 *.dat
 properties.json
+banned.json
+ops.json
+muted.json
+restricted.json

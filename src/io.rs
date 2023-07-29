@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use codepage_437::FromCp437;
 use codepage_437::CP437_WINGDINGS;
+use codepage_437::FromCp437;
 use codepage_437::IntoCp437;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
@@ -53,7 +53,7 @@ impl<R: AsyncRead + Unpin + Send> AsyncReadClassicExt for R
 					protocol: self.read_u8().await?,
 					name: self.read_string().await?,
 					data: self.read_string().await?,
-					usertype: self.read_u8().await?
+					user_mode: self.read_u8().await?
 				}),
 			0x01 => Ok(Packet::Ping),
 			0x02 => Ok(Packet::LevelStart),
@@ -138,9 +138,9 @@ impl<R: AsyncRead + Unpin + Send> AsyncReadClassicExt for R
 				{
 					reason: self.read_string().await?
 				}),
-			0x0f => Ok(Packet::UpdateUserType
+			0x0f => Ok(Packet::UpdateUserMode
 				{
-					usertype: self.read_u8().await?
+					user_mode: self.read_u8().await?
 				}),
 			_ => Ok(Packet::Unknown)
 		}
@@ -209,13 +209,13 @@ impl<W: AsyncWrite + Unpin + Send> AsyncWriteClassicExt for W
 				protocol,
 				name,
 				data,
-				usertype,
+				user_mode,
 			} => {
 				self.write_u8(0x00).await?;
 				self.write_u8(protocol).await?;
 				self.write_string(name).await?;
 				self.write_string(data).await?;
-				self.write_u8(usertype).await?;
+				self.write_u8(user_mode).await?;
 				Ok(())
 			}
 			Packet::Ping => {
@@ -319,9 +319,9 @@ impl<W: AsyncWrite + Unpin + Send> AsyncWriteClassicExt for W
 				self.write_string(reason).await?;
 				Ok(())
 			}
-			Packet::UpdateUserType { usertype } => {
+			Packet::UpdateUserMode { user_mode } => {
 				self.write_u8(0x0f).await?;
-				self.write_u8(usertype).await?;
+				self.write_u8(user_mode).await?;
 				Ok(())
 			}
 			_ => Err(std::io::Error::new(std::io::ErrorKind::Other, "tried to send unknown packet")),
