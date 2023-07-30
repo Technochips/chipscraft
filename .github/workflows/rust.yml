@@ -1,4 +1,4 @@
-name: test
+name: Build
 
 on: [push, pull_request]
 
@@ -27,7 +27,8 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
-        name: target/release/chipscraft
+        name: chipscraft-${{ runner.os }}
+        path: target/release/chipscraft
         
   build-windows:
     name: Build on Windows
@@ -50,4 +51,5 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
-        name: target/release/chipscraft.exe
+        name: chipscraft-${{ runner.os }}
+        path: target/release/chipscraft.exe
