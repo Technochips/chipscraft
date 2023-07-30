@@ -411,7 +411,7 @@ impl Server
 	{
 		self.running = false;
 		self.broadcast_packet(-1, Packet::Disconnect { reason: "Stopping server".to_string() });
-		if self.level.save("level.dat".to_string()).is_err()
+		if self.level.save().is_err()
 		{
 			println!("could not save.");
 		}

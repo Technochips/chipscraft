@@ -22,6 +22,7 @@ use std::io::Write;
 #[derive(Clone)]
 pub struct Level
 {
+	pub name: String,
 	pub size_x: i16,
 	pub size_y: i16,
 	pub size_z: i16,
@@ -46,9 +47,10 @@ pub enum SaveType
 }
 impl Level
 {
-	pub fn new() -> Self
+	pub fn new(name: String) -> Self
 	{
 		Self {
+			name,
 			size_x: 0,
 			size_y: 0,
 			size_z: 0,
@@ -373,9 +375,9 @@ impl Level
 		self.reset_spawn();
 		Ok(())
 	}
-	pub fn load(&mut self, path: String) -> Result<(), String>
+	pub fn load(&mut self) -> Result<(), String>
 	{
-		if let Ok(mut file) = File::open(path)
+		if let Ok(mut file) = File::open(format!("{}.dat", self.name))
 		{
 			println!("loading level");
 			let mut buf = Vec::<u8>::new();
@@ -401,9 +403,9 @@ impl Level
 		}
 		Err("could not open level file for loading".to_string())
 	}
-	pub fn save(&self, path: String) -> Result<(), String>
+	pub fn save(&self) -> Result<(), String>
 	{
-		if let Ok(mut f) = File::create(path)
+		if let Ok(mut f) = File::create(format!("{}.dat", self.name))
 		{
 			println!("saving level");
 			if f.write_all(&self.get_gzip(SaveType::Disk)?).is_ok()

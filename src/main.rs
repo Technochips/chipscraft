@@ -30,8 +30,8 @@ async fn main()
 	let address: SocketAddr = config.address.parse().expect("could not parse address");
 
 	let listener: TcpListener = TcpListener::bind(address).await.unwrap();
-	let mut level = Level::new();
-	if level.load(format!("{}.dat", config.level_name)).is_err()
+	let mut level = Level::new(config.level_name);
+	if level.load().is_err()
 	{
 		level.generate(config.level_size_x, config.level_size_y, config.level_size_z, config.level_type, config.level_seed).unwrap();
 	}
