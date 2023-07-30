@@ -1,0 +1,53 @@
+name: test
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-ubuntu:
+    name: Build on Ubuntu
+    runs-on: [ubuntu-latest]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --verbose --release
+    - name: Cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: target/release/chipscraft
+        
+  build-windows:
+    name: Build on Windows
+    runs-on: [windows-latest]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+    - name: Build
+      run: cargo build --verbose --release
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: target/release/chipscraft.exe
