@@ -8,6 +8,7 @@ use std::time::SystemTime;
 
 fn default_name() -> String { "Minecraft server".to_string() }
 fn default_motd() -> String { "Have fun.".to_string() }
+fn default_rules() -> String { "Be nice.".to_string() }
 fn default_max_clients() -> i8 { 20 }
 fn default_address() -> String { "0.0.0.0:25565".to_string() }
 fn default_level_name() -> String { "level".to_string() }
@@ -28,6 +29,8 @@ pub struct Config
 	pub name: String,
 	#[serde(default = "default_motd")]
 	pub motd: String,
+	#[serde(default = "default_rules")]
+	pub rules: String,
 	#[serde(default = "default_max_clients")]
 	pub max_clients: i8,
 	#[serde(default = "default_address")]
@@ -62,6 +65,7 @@ impl Default for Config
 		{
 			name: default_name(),
 			motd: default_motd(),
+			rules: default_rules(),
 			max_clients: default_max_clients(),
 			address: default_address(),
 			level_name: default_level_name(),

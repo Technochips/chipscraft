@@ -35,7 +35,7 @@ async fn main()
 	{
 		level.generate(config.level_size_x, config.level_size_y, config.level_size_z, config.level_type, config.level_seed).unwrap();
 	}
-	let server = Arc::new(Mutex::new(Server::new(config.max_clients, level, config.name, config.motd, user_data, config.public, config.verify_players, config.heartbeat, config.heartbeat_address, address.port())));
+	let server = Arc::new(Mutex::new(Server::new(config.max_clients, level, config.name, config.motd, user_data, config.public, config.verify_players, config.heartbeat, config.heartbeat_address, address.port(), config.rules)));
 	Server::start_ticks(&server).await;
 	let s = server.clone();
 	println!("ready");

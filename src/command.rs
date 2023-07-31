@@ -53,6 +53,19 @@ impl CommandList
 		});
 		commands.register(Command
 		{
+			name: "rules",
+			desc: "Shows rules.",
+			usage: "",
+			ops_only: false,
+			run: |server, id, _, _|
+			{
+				let rules = server.rules.clone();
+				server.send_message(-1, id, &rules);
+				Ok(())
+			}
+		});
+		commands.register(Command
+		{
 			name: "kick",
 			desc: "Kicks a user from the server.",
 			usage: "<username>",
@@ -324,7 +337,7 @@ impl CommandList
 							{
 								server.move_player(id, -1, client.x, client.y, client.z, client.yaw, client.pitch);
 								server.send_message(-1, fid, &format!("Teleported {} to player {}", username, target));
-								server.send_message(-1, fid, &format!("Teleported by {} to player {}.", fusername, target));
+								server.send_message(-1, id, &format!("Teleported by {} to player {}.", fusername, target));
 								return Ok(());
 							}
 						}

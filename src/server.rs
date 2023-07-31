@@ -32,7 +32,8 @@ pub struct Server
 	pub heartbeat: bool,
 	pub heartbeat_address: String,
 	pub port: u16,
-	pub salt: String
+	pub salt: String,
+	pub rules: String
 }
 impl Server
 {
@@ -81,7 +82,7 @@ impl Server
 			tokio::spawn(Server::heartbeat(server));
 		}
 	}
-	pub fn new(max_clients: i8, level: Level, name: String, motd: String, user_data: UserData, public: bool, verify_players: bool, heartbeat: bool, heartbeat_address: String, port: u16) -> Self
+	pub fn new(max_clients: i8, level: Level, name: String, motd: String, user_data: UserData, public: bool, verify_players: bool, heartbeat: bool, heartbeat_address: String, port: u16, rules: String) -> Self
 	{
 		const BASE62: [char; 62] = [
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -114,7 +115,8 @@ impl Server
 			heartbeat,
 			heartbeat_address,
 			port,
-			salt
+			salt,
+			rules
 		}
 	}
 	pub fn first_free_space(&self) -> Option<i8>
