@@ -59,7 +59,7 @@ impl CommandList
 			ops_only: false,
 			run: |server, id, _, _|
 			{
-				let rules = server.rules.clone();
+				let rules = server.config.rules.clone();
 				server.send_message(-1, id, &rules);
 				Ok(())
 			}
@@ -113,7 +113,7 @@ impl CommandList
 				{
 					server.send_message(-1, id, msg);
 				}
-				server.user_data.banned.add_username(username);
+				server.config.user_data.banned.add_username(username);
 				Ok(())
 			}
 		});
@@ -138,7 +138,7 @@ impl CommandList
 					}
 					if let Some(client) = server.clients.get(&bid)
 					{
-						server.user_data.banned.add_ip(client.ip.ip());
+						server.config.user_data.banned.add_ip(client.ip.ip());
 						server.kick(bid, "You have been banned.".to_string());
 						server.broadcast_system_message(-1, &format!("{} has been banned.", username));
 						return Ok(())
@@ -160,7 +160,7 @@ impl CommandList
 				{
 					return Err("No username was provided.".to_string());
 				}
-				if server.user_data.banned.remove_username(&username)
+				if server.config.user_data.banned.remove_username(&username)
 				{	
 					server.send_message(-1, id, &format!("{} has been unbanned.", username));
 				}
@@ -189,7 +189,7 @@ impl CommandList
 					server.send_message(-1, id, "You have been muted.");
 				}
 				server.send_message(-1, id, &format!("{} has been muted.", username));
-				server.user_data.muted.add_username(username);
+				server.config.user_data.muted.add_username(username);
 				Ok(())
 			}
 		});
@@ -206,7 +206,7 @@ impl CommandList
 				{
 					return Err("No username was provided.".to_string());
 				}
-				if server.user_data.muted.remove_username(&username)
+				if server.config.user_data.muted.remove_username(&username)
 				{
 					if let Some(id) = server.get_index_from_username(&username)
 					{
@@ -239,7 +239,7 @@ impl CommandList
 					server.send_message(-1, id, "You have been restricted.");
 				}
 				server.send_message(-1, id, &format!("{} has been restricted.", username));
-				server.user_data.restricted.add_username(username);
+				server.config.user_data.restricted.add_username(username);
 				Ok(())
 			}
 		});
@@ -256,7 +256,7 @@ impl CommandList
 				{
 					return Err("No username was provided.".to_string());
 				}
-				if server.user_data.restricted.remove_username(&username)
+				if server.config.user_data.restricted.remove_username(&username)
 				{
 					if let Some(id) = server.get_index_from_username(&username)
 					{

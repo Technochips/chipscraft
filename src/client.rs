@@ -78,18 +78,18 @@ impl Client
 			{
 				return None;
 			}
-			if server.lock().await.user_data.banned.contains(&name, &ip.ip())
+			if server.lock().await.config.user_data.banned.contains(&name, &ip.ip())
 			{
 				println!("{} from {} tried to connect but was banned", name, ip);
-				let _ = stream.write_packet(Packet::Disconnect { reason: "You are banned".to_string() }).await;
+				let _ = stream.write_packet(Packet::Disconnect { reason: "You are banned.".to_string() }).await;
 				return None;
 			}
-			if server.lock().await.verify_players
+			if server.lock().await.config.verify_players
 			{
 				if key != format!("{:?}", md5::compute(format!("{}{}", server.lock().await.salt.clone(), name)))
 				{
 					println!("{} tried to connect but couldn't verify from {}", name, ip);
-					let _ = stream.write_packet(Packet::Disconnect { reason: "Could not verify".to_string() }).await;
+					let _ = stream.write_packet(Packet::Disconnect { reason: "Could not verify. Try refreshing the server list.".to_string() }).await;
 					return None;
 				}
 			}
@@ -104,19 +104,19 @@ impl Client
 		{
 			println!("server too full. {} tried to connect from {}", username, ip);
 			// we do not really care if this packets fails to get sent.
-			let _ = stream.write_packet(Packet::Disconnect { reason: "Too many players".to_string() }).await;
+			let _ = stream.write_packet(Packet::Disconnect { reason: "Too many players.".to_string() }).await;
 			return None;
 		}
 		let id = id.unwrap();
 		if server.lock().await.get_index_from_username(&username).is_some()
 		{
 			println!("{} tried to connect a second time from {}!", username, ip);
-			let _ = stream.write_packet(Packet::Disconnect { reason: "Player already logged in".to_string() }).await;
+			let _ = stream.write_packet(Packet::Disconnect { reason: "Player already logged in.".to_string() }).await;
 			return None;
 		}
-		let server_name = server.lock().await.name.clone();
-		let server_motd = server.lock().await.motd.clone();
-		let user_mode = if server.lock().await.user_data.ops.contains(&username, &ip.ip()) { ClientMode::Operator } else { ClientMode::Normal };
+		let server_name = server.lock().await.config.name.clone();
+		let server_motd = server.lock().await.config.motd.clone();
+		let user_mode = if server.lock().await.config.user_data.ops.contains(&username, &ip.ip()) { ClientMode::Operator } else { ClientMode::Normal };
 		println!("{}:{} is connecting from {}...", id, username, ip);
 		if stream.write_packet(Packet::Identification { protocol: 7, name: server_name, data: server_motd, user_mode: user_mode.get_id() }).await.is_err() { return None; }
 		if stream.write_packet(Packet::LevelStart).await.is_err() { return None; }
@@ -169,7 +169,7 @@ impl Client
 							let command = split.next().unwrap()[1..].to_lowercase();
 							server.lock().await.command(id, command, split.collect());
 						}
-						else if server.lock().await.user_data.muted.contains(&username, &ip.ip())
+						else if server.lock().await.config.user_data.muted.contains(&username, &ip.ip())
 						{
 							println!("{}:<{}> (muted) {}", id, username, message);
 							server.lock().await.send_message(-1, id, "You have been muted, you cannot send any messages.");

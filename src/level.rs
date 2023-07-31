@@ -45,6 +45,8 @@ pub enum SaveType
 	Network,
 	Disk
 }
+// A level implements everything that's permanently saved into a level.
+// This means its size, and the blocks inside.
 impl Level
 {
 	pub fn new(name: String) -> Self
@@ -80,7 +82,7 @@ impl Level
 			GenerationType::Flat =>
 			{
 				let floor = self.size_y/2;
-				for y in 0..self.size_y
+				for y in 0..=floor
 				{
 					let b = if y == 0
 					{ 10 } // lava
@@ -88,10 +90,8 @@ impl Level
 					{ 1 } // stone
 					else if y < floor
 					{ 3 } // dirt
-					else if y == floor
-					{ 2 } // grass
 					else
-					{ 0 }; // air
+					{ 2 }; // grass
 					for x in 0..self.size_x
 					{
 						for z in 0..self.size_z

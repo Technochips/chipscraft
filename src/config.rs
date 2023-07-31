@@ -1,8 +1,12 @@
 use crate::level::GenerationType;
+use crate::userdata::UserData;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use std::fs::File;
 use std::io::Write;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
+use std::net::IpAddr;
 use std::time;
 use std::time::SystemTime;
 
@@ -10,7 +14,7 @@ fn default_name() -> String { "Minecraft server".to_string() }
 fn default_motd() -> String { "Have fun.".to_string() }
 fn default_rules() -> String { "Be nice.".to_string() }
 fn default_max_clients() -> i8 { 20 }
-fn default_address() -> String { "0.0.0.0:25565".to_string() }
+fn default_address() -> SocketAddr { SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 25565) }
 fn default_level_name() -> String { "level".to_string() }
 fn default_level_size_x() -> i16 { 128 }
 fn default_level_size_y() -> i16 { 64 }
@@ -34,7 +38,7 @@ pub struct Config
 	#[serde(default = "default_max_clients")]
 	pub max_clients: i8,
 	#[serde(default = "default_address")]
-	pub address: String,
+	pub address: SocketAddr,
 	#[serde(default = "default_level_name")]
 	pub level_name: String,
 	#[serde(default = "default_level_size_x")]
@@ -54,7 +58,10 @@ pub struct Config
 	#[serde(default = "default_verify_players")]
 	pub verify_players: bool,
 	#[serde(default = "default_public")]
-	pub public: bool
+	pub public: bool,
+
+	#[serde(skip, default = "UserData::load")]
+	pub user_data: UserData,
 }
 
 impl Default for Config
@@ -77,7 +84,8 @@ impl Default for Config
 			heartbeat: default_heartbeat(),
 			heartbeat_address: default_heartbeat_address(),
 			verify_players: default_verify_players(),
-			public: default_public()
+			public: default_public(),
+			user_data: UserData::load()
 		}
     }
 }
@@ -85,9 +93,10 @@ impl Config
 {
 	const FILE: &str = "properties.json";
 
-	pub fn load() -> Self
+	pub fn load() -> Result<Self, String>
 	{
 		let config;
+		let mut firsttime = false;
 
 		if let Ok(file) = File::open(Config::FILE)
 		{
@@ -95,7 +104,7 @@ impl Config
 		}
 		else
 		{
-			println!("could not open config file. loading default settings.");
+			firsttime = true;
 			config = Config::default();
 		}
 
@@ -103,14 +112,19 @@ impl Config
 		{
 			if file.write(json.as_bytes()).is_err()
 			{
-				println!("could not write config file.");
+				return Err("could not write config file.".to_string());
 			}
 		}
 		else
 		{
-			println!("could not create config file.");
+			return Err("could not create config file.".to_string());
 		}
 
-		config
+		if firsttime
+		{
+			return Err("config file was not found, so one was created. please configure it, and then you can run the program again. add your username to the operator list as well.".to_string());
+		}
+
+		Ok(config)
 	}
 }

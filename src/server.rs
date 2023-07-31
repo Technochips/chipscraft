@@ -3,9 +3,9 @@ use crate::chat;
 use crate::client::Client;
 use crate::client::ClientMode;
 use crate::command::CommandList;
+use crate::config::Config;
 use crate::level::Level;
 use crate::packet::Packet;
-use crate::userdata::UserData;
 use rand::Rng;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -18,22 +18,13 @@ use tokio::time;
 
 pub struct Server
 {
-	pub name: String,
-	pub motd: String,
-	pub max_clients: i8,
+	pub config: Config,
 	pub client_count: i8,
 	pub clients: HashMap<i8, Client>,
 	pub commands: CommandList,
 	pub level: Level,
-	pub user_data: UserData,
 	pub running: bool,
-	pub public: bool,
-	pub verify_players: bool,
-	pub heartbeat: bool,
-	pub heartbeat_address: String,
-	pub port: u16,
-	pub salt: String,
-	pub rules: String
+	pub salt: String
 }
 impl Server
 {
@@ -46,15 +37,15 @@ impl Server
 		{
 			{
 				let server = server.lock().await;
-				if server.heartbeat
+				if server.config.heartbeat
 				{
-					let heartbeat_address = server.heartbeat_address.clone();
-					let name = urlencoding::encode(&server.name.clone()).into_owned();
-					let max_clients = server.max_clients;
+					let heartbeat_address = server.config.heartbeat_address.clone();
+					let name = urlencoding::encode(&server.config.name.clone()).into_owned();
+					let max_clients = server.config.max_clients;
 					let client_count = server.client_count;
-					let public = server.public;
+					let public = server.config.public;
 					let salt = server.salt.clone();
-					let port = server.port;
+					let port = server.config.address.port();
 					if let Ok(body) = reqwest::get(format!("{}?port={}&max={}&name={}&public={}&version=7&salt={}&users={}&software=chipscraft\r\n", heartbeat_address, port, max_clients, name, if public { "True" } else { "False" }, salt, client_count)).await
 					{
 						if running_first_time
@@ -77,12 +68,9 @@ impl Server
 	}
 	pub async fn start_ticks(server: &Arc<Mutex<Self>>)
 	{
-		{
-			let server = server.clone();
-			tokio::spawn(Server::heartbeat(server));
-		}
+		tokio::spawn(Server::heartbeat(server.clone()));
 	}
-	pub fn new(max_clients: i8, level: Level, name: String, motd: String, user_data: UserData, public: bool, verify_players: bool, heartbeat: bool, heartbeat_address: String, port: u16, rules: String) -> Self
+	pub fn new(config: Config, level: Level) -> Self
 	{
 		const BASE62: [char; 62] = [
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -101,28 +89,19 @@ impl Server
 		}
 		Self
 		{
-			name,
-			motd,
-			max_clients,
+			config,
 			client_count: 0,
 			clients: HashMap::new(),
 			commands: CommandList::new(),
 			level,
-			user_data,
 			running: true,
-			public,
-			verify_players,
-			heartbeat,
-			heartbeat_address,
-			port,
-			salt,
-			rules
+			salt
 		}
 	}
 	pub fn first_free_space(&self) -> Option<i8>
 	{
 		let mut id = None;
-		for i in 0..self.max_clients
+		for i in 0..self.config.max_clients
 		{
 			if self.clients.get(&i).is_none()
 			{
@@ -134,7 +113,7 @@ impl Server
 	}
 	pub fn get_index_from_username(&self, username: &str) -> Option<i8>
 	{
-		for i in 0..self.max_clients
+		for i in 0..self.config.max_clients
 		{
 			if let Some(client) = self.clients.get(&i)
 			{
@@ -148,7 +127,7 @@ impl Server
 	}
 	pub fn get_client_from_username(&self, username: &str) -> Option<&Client>
 	{
-		for i in 0..self.max_clients
+		for i in 0..self.config.max_clients
 		{
 			if let Some(client) = self.clients.get(&i)
 			{
@@ -217,7 +196,7 @@ impl Server
 		{
 			if (block as usize) < block::BLOCKS.len()
 			{
-				let (mode, restricted) = if id < 0 { (ClientMode::Operator, false) } else if let Some(client) = self.clients.get(&id) { (client.mode, self.user_data.restricted.contains(&client.username, &client.ip.ip())) } else { (ClientMode::Normal, true) };
+				let (mode, restricted) = if id < 0 { (ClientMode::Operator, false) } else if let Some(client) = self.clients.get(&id) { (client.mode, self.config.user_data.restricted.contains(&client.username, &client.ip.ip())) } else { (ClientMode::Normal, true) };
 				let placed_block = &block::BLOCKS[block as usize];
 				let replaced_block = &block::BLOCKS[self.level.get_block(x, y, z) as usize];
 				if ((!placed_block.place_op_only && !replaced_block.destroy_op_only) || mode == ClientMode::Operator) && !restricted
@@ -313,7 +292,7 @@ impl Server
 	}
 	pub fn broadcast_packet(&mut self, oid: i8, packet: Packet)
 	{
-		for cid in 0..self.max_clients
+		for cid in 0..self.config.max_clients
 		{
 			if self.clients.contains_key(&cid)
 			{
@@ -396,7 +375,7 @@ impl Server
 		let z = self.level.spawn_z;
 		let yaw = self.level.spawn_yaw;
 		let pitch = self.level.spawn_pitch;
-		for i in 0..self.max_clients
+		for i in 0..self.config.max_clients
 		{
 			if let Some(client) = self.clients.get(&i)
 			{
