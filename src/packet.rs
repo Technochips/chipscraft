@@ -1,7 +1,10 @@
 #[derive(Debug,Clone)]
 pub enum Packet
 {
-	Unknown,
+	Unknown 
+	{
+		id: u8
+	},
 	Identification
 	{
 		protocol: u8,

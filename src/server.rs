@@ -210,23 +210,11 @@ impl Server
 		{
 			for (xx,yy,zz,bblock) in self.level.place_block(x, y, z, block)
 			{
-				let id = if xx == x && yy == y && zz == z
+				if should_discard_original_placed_block && xx == x && yy == y && zz == z
 				{
 					should_discard_original_placed_block = false;
-					if bblock == block
-					{
-						id
-					}
-					else
-					{
-						-1
-					}
 				}
-				else
-				{
-					-1
-				};
-				self.broadcast_packet(id, Packet::SetBlock { x:xx, y:yy, z:zz, block:bblock });
+				self.broadcast_packet(-1, Packet::SetBlock { x:xx, y:yy, z:zz, block:bblock });
 			}
 		}
 		if should_discard_original_placed_block

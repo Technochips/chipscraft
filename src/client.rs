@@ -13,6 +13,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ClientMode
@@ -49,9 +50,78 @@ impl Client
 	{
 		while let Some(packet) = recv.recv().await
 		{
+			if let Packet::Disconnect { reason: _ } = packet
+			{
+				let _ = write.write_packet(packet).await;
+				return;
+			}
 			if write.write_packet(packet).await.is_err()
 			{
 				return;
+			}
+		}
+	}
+	pub async fn receiver_client(mut read: OwnedReadHalf, server: Arc<Mutex<Server>>, id: i8, username: String, ip: SocketAddr)
+	{
+		while let Ok(packet) = read.read_packet().await
+		{
+			if !match packet
+			{
+				Packet::PlaceBlock { x, y, z, block, mode } =>
+				{
+					let server = server.clone();
+					tokio::spawn(async move
+						{
+							server.lock().await.set_block(id,x,y,z, if mode == 0 { 0 } else { block })
+						});
+					true
+				}
+				Packet::SetPosAndLook { id: _, x, y, z, yaw, pitch } =>
+				{
+					let server = server.clone();
+					tokio::spawn(async move
+					{
+						server.lock().await.move_player(id, id, x, y, z, yaw, pitch);
+					});
+					true
+				}
+				Packet::Message { id: _, message } =>
+				{
+					let server = server.clone();
+
+					// check if first char is /
+					if message.len() > 0 && &message[0..1] == "/"
+					{
+						tokio::spawn(async move
+						{
+							let mut split = message.split(' ');
+							let command = split.next().unwrap()[1..].to_lowercase();
+							server.lock().await.command(id, command, split.collect());
+						});
+					}
+					else if server.lock().await.config.user_data.muted.contains(&username, &ip.ip())
+					{
+						println!("{}:<{}> (muted) {}", id, username, message);
+						tokio::spawn(async move
+						{
+							server.lock().await.send_message(-1, id, "You have been muted, you cannot send any messages.");
+						});
+					}
+					else
+					{
+						let username = username.clone();
+						tokio::spawn(async move
+						{
+							server.lock().await.broadcast_message(id, &format!("<{}> {}", username, message));
+						});
+					}
+					true
+				}
+				_ => false
+			}
+			{
+				println!("warning: {} sent an invalid packet", username);
+				break;
 			}
 		}
 	}
@@ -69,7 +139,7 @@ impl Client
 		if stream.write_packet(Packet::LevelSize { x: size_x, y: size_y, z: size_z }).await.is_err() { return None; };
 		Some(())
 	}
-	pub async fn init_client(mut stream: TcpStream, ip: SocketAddr, server: &Arc<Mutex<Server>>) -> Option<(i8, String, OwnedReadHalf)>
+	pub async fn init_client(mut stream: TcpStream, ip: SocketAddr, server: &Arc<Mutex<Server>>) -> Option<(JoinHandle<()>, JoinHandle<()>, i8)>
 	{
 		let username;
 		if let Ok(Packet::Identification { protocol, name, data: key, user_mode: _ }) = stream.read_packet().await
@@ -127,71 +197,25 @@ impl Client
 		// we send the level to the player
 		if Client::send_level(&mut stream, &server).await.is_none() { return None; };
 		let (read, write) = stream.into_split();
+
 		// finally we start actually sending the shit the server sends to the player
-		tokio::spawn(Client::sender_client(recv, write));
-		Some((id, username, read))
+		let sender = tokio::spawn(Client::sender_client(recv, write));
+		let receiver = tokio::spawn(Client::receiver_client(read, server.clone(), id, username, ip));
+
+		Some((sender, receiver, id))
 	}
 	pub async fn handle_client(stream: TcpStream, ip: SocketAddr, server: Arc<Mutex<Server>>)
 	{
 		let op = Client::init_client(stream, ip, &server).await;
 		if op.is_none() { return; }
-		let (id, username, mut read) = op.unwrap();
+		let (sender, receiver, id) = op.unwrap();
 
-		while let Ok(packet) = read.read_packet().await
+		tokio::select!
 		{
-			if !match packet
-			{
-				Packet::PlaceBlock { x, y, z, block, mode } =>
-				{
-					server.lock().await.set_block(id, x, y, z, if mode == 0 { 0 } else { block });
-					true
-				}
-				Packet::SetPosAndLook { id: negativeone, x, y, z, yaw, pitch } =>
-				{
-					if negativeone == -1
-					{
-						server.lock().await.move_player(id, id, x, y, z, yaw, pitch);
-						true
-					}
-					else
-					{
-						false
-					}
-				}
-				Packet::Message { id: negativeone, message } =>
-				{
-					if negativeone == -1
-					{
-						// check if first char is /
-						if message.len() > 0 && &message[0..1] == "/"
-						{
-							let mut split = message.split(' ');
-							let command = split.next().unwrap()[1..].to_lowercase();
-							server.lock().await.command(id, command, split.collect());
-						}
-						else if server.lock().await.config.user_data.muted.contains(&username, &ip.ip())
-						{
-							println!("{}:<{}> (muted) {}", id, username, message);
-							server.lock().await.send_message(-1, id, "You have been muted, you cannot send any messages.");
-						}
-						else
-						{
-							server.lock().await.broadcast_message(id, &format!("<{}> {}", username, message));
-						}
-						true
-					}
-					else
-					{
-						false
-					}
-				}
-				_ => false
-			}
-			{
-				println!("warning: {} sent an invalid packet", username);
-				break;
-			}
+			_ = sender => {}
+			_ = receiver => {}
 		}
+
 		server.lock().await.disconnected(id);
 	}
 }

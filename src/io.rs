@@ -46,7 +46,8 @@ impl<R: AsyncRead + Unpin + Send> AsyncReadClassicExt for R
 	}
 	async fn read_packet(&mut self) -> Result<Packet, std::io::Error>
 	{
-		match self.read_u8().await?
+		let id = self.read_u8().await?;
+		match id
 		{
 			0x00 => Ok(Packet::Identification
 				{
@@ -142,7 +143,7 @@ impl<R: AsyncRead + Unpin + Send> AsyncReadClassicExt for R
 				{
 					user_mode: self.read_u8().await?
 				}),
-			_ => Ok(Packet::Unknown)
+			_ => Ok(Packet::Unknown { id })
 		}
 	}
 }
