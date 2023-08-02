@@ -322,11 +322,11 @@ impl Server
 	}
 	pub fn command(&mut self, id: i8, name: String, args: Vec<&str>)
 	{
-		let (username, mode): (&str, ClientMode) = if id == -1 { ("Console", ClientMode::Operator) } else 
+		let (username, mode, muted, restricted): (&str, ClientMode, bool, bool) = if id == -1 { ("Console", ClientMode::Operator, false, false) } else 
 		{
 			if let Some(client) = self.clients.get(&id)
 			{
-				(&client.username, client.mode)
+				(&client.username, client.mode, self.config.user_data.muted.contains_username(&client.username), self.config.user_data.restricted.contains_username(&client.username))
 			}
 			else
 			{
@@ -339,6 +339,14 @@ impl Server
 			if command.ops_only && mode != ClientMode::Operator
 			{
 				self.send_message(-1, id, "You do not have permission to use that command.");
+			}
+			else if command.unmuted_only && muted
+			{
+				self.send_message(-1, id, "You are muted, you cannot use this command.");
+			}
+			else if command.unrestricted_only && restricted
+			{
+				self.send_message(-1, id, "You are restricted, you cannot use this command.");
 			}
 			else if let Err(err) = (command.run)(self, id, args, mode)
 			{

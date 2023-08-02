@@ -9,6 +9,8 @@ pub struct Command
 	pub desc: &'static str, // what the command does e.g. 'Teleports the player'
 	pub usage: &'static str, // how to use the command e.g. '/tp [x] [y] [z] OR /tp [player]'
 	pub ops_only: bool, // if true, will be completely hidden from non-operators
+	pub unmuted_only: bool,
+	pub unrestricted_only: bool,
 	pub run: fn(server: &mut Server, id: i8, args: Vec<&str>, mode: ClientMode) -> Result<(), String>
 }
 pub struct CommandList
@@ -26,6 +28,8 @@ impl CommandList
 			desc: "Shows help.",
 			usage: "[command]",
 			ops_only: false,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, id, args, mode|
 			{
 				if let Some(command) = args.get(0)
@@ -57,6 +61,8 @@ impl CommandList
 			desc: "Shows rules.",
 			usage: "",
 			ops_only: false,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, id, _, _|
 			{
 				let rules = server.config.rules.clone();
@@ -70,6 +76,8 @@ impl CommandList
 			desc: "Kicks a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, _, args, _|
 			{
 				let username = args.join(" ");
@@ -92,6 +100,8 @@ impl CommandList
 			desc: "Bans a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -123,6 +133,8 @@ impl CommandList
 			desc: "IP-bans a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -153,6 +165,8 @@ impl CommandList
 			desc: "Unbans a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -177,6 +191,8 @@ impl CommandList
 			desc: "Mutes a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: true,
+			unrestricted_only: false,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -199,6 +215,8 @@ impl CommandList
 			desc: "Unmutes a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: true,
+			unrestricted_only: false,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -227,6 +245,8 @@ impl CommandList
 			desc: "Restricts a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: true,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -249,6 +269,8 @@ impl CommandList
 			desc: "Unrestricts a user from the server.",
 			usage: "<username>",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: true,
 			run: |server, id, args, _|
 			{
 				let username = args.join(" ");
@@ -277,6 +299,8 @@ impl CommandList
 			desc: "Teleports yourself to a target. It can either be a position, or a user.",
 			usage: "<x> <y> <z> || <username>",
 			ops_only: false,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, id, args, _|
 			{
 				if let (Some(x),Some(y),Some(z)) = (args.get(0), args.get(1), args.get(2))
@@ -310,6 +334,8 @@ impl CommandList
 			desc: "Teleport another player to a target. It can either be a position, or a user.",
 			usage: "<username> ( <x> <y> <z> || <username> )",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, fid, args, _|
 			{
 				let fusername = server.clients.get(&fid).unwrap().username.clone();
@@ -353,6 +379,8 @@ impl CommandList
 			desc: "Saves the world. This also creates a backup.",
 			usage: "",
 			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: false,
 			run: |server, fid, _, _|
 			{
 				server.broadcast_message(-1, "Saving world...");
@@ -362,6 +390,48 @@ impl CommandList
 				}
 				server.broadcast_message(-1, "Done.");
 				Ok(())
+			}
+		});
+		commands.register(Command
+		{
+			name: "msg",
+			desc: "Sends a message to a player.",
+			usage: "",
+			ops_only: false,
+			unmuted_only: true,
+			unrestricted_only: false,
+			run: |server, fid, args, _|
+			{
+				let mut args = args.iter();
+				let sender = if fid >= 0 {
+					if let Some(sender) = server.clients.get(&fid)
+					{
+						(sender.username).clone()
+					}
+					else
+					{
+						return Err("Major lack of a username.".to_string());
+					}
+				}
+				else
+				{
+					"Console".to_string()
+				};
+				if let Some(username) = args.next()
+				{
+					if let Some(id) = server.get_index_from_username(username)
+					{
+						let msg = args.map(|x| *x).collect::<Vec<&str>>().join(" ");
+						if msg.is_empty()
+						{
+							return Err("Please type in a message to send.".to_string());
+						}
+						server.send_message(fid, fid, &format!("&7to <{}> {}", username, msg));
+						server.send_message(fid, id, &format!("&7<{}> {}", sender, msg));
+						return Ok(());
+					}
+				}
+				Err("Unknown player.".to_string())
 			}
 		});
 		commands
