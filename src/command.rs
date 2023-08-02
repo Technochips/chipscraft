@@ -396,7 +396,7 @@ impl CommandList
 		{
 			name: "msg",
 			desc: "Sends a message to a player.",
-			usage: "",
+			usage: "<player> <message>",
 			ops_only: false,
 			unmuted_only: true,
 			unrestricted_only: false,
@@ -432,6 +432,27 @@ impl CommandList
 					}
 				}
 				Err("Unknown player.".to_string())
+			}
+		});
+		commands.register(Command
+		{
+			name: "reload-config",
+			desc: "Reload the configuration files.",
+			usage: "",
+			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: true,
+			run: |server, id, _, _|
+			{
+				if let Err(e) = server.reload_config()
+				{
+					Err(format!("Could not reload configuration file: {}", e))
+				}
+				else
+				{
+					server.send_message(-1, id, "Configuration file was reloaded");
+					Ok(())
+				}
 			}
 		});
 		commands

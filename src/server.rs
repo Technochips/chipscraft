@@ -380,14 +380,40 @@ impl Server
 	}
 	pub async fn stop(&mut self)
 	{
+		println!("shutting down...");
+
 		self.running = false;
 		self.broadcast_message(-1, "&cShutting down server in three seconds.");
 		tokio::time::sleep(Duration::from_secs(3)).await;
 		self.broadcast_packet(-1, Packet::Disconnect { reason: "Stopping server".to_string() });
 		tokio::time::sleep(Duration::from_secs(1)).await;
+
 		if self.level.save().is_err()
 		{
 			println!("could not save.");
+		}
+	}
+	pub fn reload_config(&mut self) -> Result<(), String>
+	{
+		match Config::load()
+		{
+			Err(e) => Err(e),
+			Ok(config) =>
+			{
+				for id in 0..self.config.max_clients
+				{
+					if let Some(client) = self.clients.get(&id)
+					{
+						if config.user_data.banned.contains(&client.username, &client.ip.ip())
+						{
+							self.kick(id, "You have been banned.".to_string());
+						}
+					}
+				}
+				self.config = config;
+				println!("reloaded config file");
+				Ok(())
+			}
 		}
 	}
 }
