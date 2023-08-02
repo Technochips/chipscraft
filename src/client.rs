@@ -46,22 +46,22 @@ pub struct Client
 }
 impl Client
 {
-	pub async fn sender_client(mut recv: UnboundedReceiver<Packet>, mut write: OwnedWriteHalf)
+	pub async fn sender_client(mut recv: UnboundedReceiver<Packet>, write: Arc<Mutex<OwnedWriteHalf>>) -> String
 	{
 		while let Some(packet) = recv.recv().await
 		{
-			if let Packet::Disconnect { reason: _ } = packet
+			if let Packet::Disconnect { reason } = packet
 			{
-				let _ = write.write_packet(packet).await;
-				return;
+				return reason;
 			}
-			if write.write_packet(packet).await.is_err()
+			if write.lock().await.write_packet(packet).await.is_err()
 			{
-				return;
+				return "Connection closed.".to_string();
 			}
 		}
+		"No more packets to send... server most likely crashed.".to_string()
 	}
-	pub async fn receiver_client(mut read: OwnedReadHalf, server: Arc<Mutex<Server>>, id: i8, username: String, ip: SocketAddr)
+	pub async fn receiver_client(mut read: OwnedReadHalf, server: Arc<Mutex<Server>>, id: i8, username: String, ip: SocketAddr) -> String
 	{
 		while let Ok(packet) = read.read_packet().await
 		{
@@ -120,10 +120,10 @@ impl Client
 				_ => false
 			}
 			{
-				println!("warning: {} sent an invalid packet", username);
-				break;
+				return "Invalid packet received.".to_string();
 			}
 		}
+		"Connection closed".to_string()
 	}
 	pub async fn send_level(stream: &mut TcpStream, server: &Arc<Mutex<Server>>) -> Option<()>
 	{
@@ -139,7 +139,7 @@ impl Client
 		if stream.write_packet(Packet::LevelSize { x: size_x, y: size_y, z: size_z }).await.is_err() { return None; };
 		Some(())
 	}
-	pub async fn init_client(mut stream: TcpStream, ip: SocketAddr, server: &Arc<Mutex<Server>>) -> Option<(JoinHandle<()>, JoinHandle<()>, i8)>
+	pub async fn init_client(mut stream: TcpStream, ip: SocketAddr, server: &Arc<Mutex<Server>>) -> Option<(JoinHandle<String>, JoinHandle<String>, i8, Arc<Mutex<OwnedWriteHalf>>)>
 	{
 		let username;
 		if let Ok(Packet::Identification { protocol, name, data: key, user_mode: _ }) = stream.read_packet().await
@@ -190,31 +190,46 @@ impl Client
 		println!("{}:{} is connecting from {}...", id, username, ip);
 		if stream.write_packet(Packet::Identification { protocol: 7, name: server_name, data: server_motd, user_mode: user_mode.get_id() }).await.is_err() { return None; }
 		if stream.write_packet(Packet::LevelStart).await.is_err() { return None; }
+
+
 		// send/recv channel to receive packets asynchronously
 		let (send, recv) = mpsc::unbounded_channel();
+
+
 		// spawn the player. at this point the server starts sending things to the player
 		if server.lock().await.spawn(id, ip, username.clone(), user_mode, send).is_err() { return None; };
+
+
 		// we send the level to the player
 		if Client::send_level(&mut stream, &server).await.is_none() { return None; };
 		let (read, write) = stream.into_split();
 
+		let write = Arc::new(Mutex::new(write));
+
 		// finally we start actually sending the shit the server sends to the player
-		let sender = tokio::spawn(Client::sender_client(recv, write));
+		let sender = tokio::spawn(Client::sender_client(recv, write.clone()));
 		let receiver = tokio::spawn(Client::receiver_client(read, server.clone(), id, username, ip));
 
-		Some((sender, receiver, id))
+		Some((sender, receiver, id, write))
 	}
 	pub async fn handle_client(stream: TcpStream, ip: SocketAddr, server: Arc<Mutex<Server>>)
 	{
 		let op = Client::init_client(stream, ip, &server).await;
 		if op.is_none() { return; }
-		let (sender, receiver, id) = op.unwrap();
+		let (sender, receiver, id, write) = op.unwrap();
 
-		tokio::select!
+		let reason = match tokio::select!
 		{
-			_ = sender => {}
-			_ = receiver => {}
+			r = sender => { r }
+			r = receiver => { r }
 		}
+		{
+			Ok(reason) => reason,
+			Err(err) => format!("Panic: {}", err)
+		};
+
+		println!("player disconnected: \"{}\"", reason);
+		let _ = write.lock().await.write_packet(Packet::Disconnect { reason }).await;
 
 		server.lock().await.disconnected(id);
 	}

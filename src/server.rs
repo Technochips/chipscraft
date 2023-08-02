@@ -166,7 +166,6 @@ impl Server
 		}
 		if let Some(client) = self.clients.get(&cid)
 		{
-			let mut disconnect = false;
 			let r = client.packet_sender.send(match packet
 			{
 				Packet::Spawn { id, name, x, y, z, yaw, pitch } => Packet::Spawn { id: if id == cid {-1} else {id}, name, x, y, z, yaw, pitch},
@@ -174,14 +173,9 @@ impl Server
 				Packet::UpdatePosAndLook { id, x, y, z, yaw, pitch } => Packet::UpdatePosAndLook { id: if id == cid {-1} else {id}, x, y, z, yaw, pitch },
 				Packet::UpdatePos { id, x, y, z } => Packet::UpdatePos { id: if id == cid {-1} else {id}, x, y, z },
 				Packet::UpdateLook { id , yaw, pitch } => Packet::UpdateLook { id: if id == cid {-1} else {id}, yaw, pitch },
-				Packet::Disconnect { reason } =>
-				{
-					disconnect = true;
-					Packet::Disconnect { reason }
-				}
 				_ => packet
 			});
-			if disconnect || r.is_err()
+			if r.is_err()
 			{
 				self.disconnected(cid);
 			}
