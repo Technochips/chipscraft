@@ -378,10 +378,13 @@ impl Server
 		self.broadcast_packet(id, Packet::Spawn { id: id, name: username, x, y, z, yaw, pitch});
 		Ok(())
 	}
-	pub fn stop(&mut self)
+	pub async fn stop(&mut self)
 	{
 		self.running = false;
+		self.broadcast_message(-1, "&cShutting down server in three seconds.");
+		tokio::time::sleep(Duration::from_secs(3)).await;
 		self.broadcast_packet(-1, Packet::Disconnect { reason: "Stopping server".to_string() });
+		tokio::time::sleep(Duration::from_secs(1)).await;
 		if self.level.save().is_err()
 		{
 			println!("could not save.");

@@ -58,5 +58,5 @@ async fn main()
 		_ = signal::ctrl_c() => {}
 	}
 	println!("shutting down...");
-	server.lock().await.stop();
+	server.lock().await.stop().await;
 }
