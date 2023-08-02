@@ -23,14 +23,11 @@ jobs:
             target: pc-windows-msvc
           - extension: ""
             target: unknown-linux-gnu
+        exclude:
+          - target: unknown-linux-gnu
+            arch: i686
 
     steps:
-    - name: APT Cache
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      if: matrix.os == 'ubuntu-latest' && matrix.arch != 'x86_64'
-      with:
-        packages: gcc-multilib
-        version: 1.0
     - name: Checkout
       uses: actions/checkout@v3
     - name: Rust Cache
