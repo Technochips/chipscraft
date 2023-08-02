@@ -1,4 +1,6 @@
 /target
+
+/backup
 *.dat
 properties.json
 banned.json

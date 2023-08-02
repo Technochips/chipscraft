@@ -347,6 +347,23 @@ impl CommandList
 				Err("Could not find user to teleport.".to_string())
 			}
 		});
+		commands.register(Command
+		{
+			name: "save",
+			desc: "Saves the world. This also creates a backup.",
+			usage: "",
+			ops_only: true,
+			run: |server, fid, _, _|
+			{
+				server.broadcast_message(-1, "Saving world...");
+				if let Err(e) = server.level.save()
+				{
+					server.send_message(-1, fid, &e);
+				}
+				server.broadcast_message(-1, "Done.");
+				Ok(())
+			}
+		});
 		commands
 	}
 	pub fn register(&mut self, command: Command)

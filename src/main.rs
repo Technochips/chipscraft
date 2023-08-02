@@ -35,6 +35,11 @@ async fn main()
 	if level.load().is_err()
 	{
 		level.generate(config.level_size_x, config.level_size_y, config.level_size_z, config.level_type, config.level_seed).unwrap();
+		level.changed = false;
+		if let Err(e) = level.save()
+		{
+			println!("{}", e);
+		}
 	}
 	let server = Arc::new(Mutex::new(Server::new(config, level)));
 	Server::start_ticks(&server).await;

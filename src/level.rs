@@ -1,6 +1,7 @@
 use byteorder::NetworkEndian;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
+use chrono::Local;
 use crate::block;
 use crate::noise::CombinedNoise;
 use crate::noise::Noise;
@@ -15,6 +16,7 @@ use rand::SeedableRng;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use std::f64::consts::PI;
+use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
@@ -31,6 +33,7 @@ pub struct Level
 	pub spawn_z: i16,
 	pub spawn_yaw: u8,
 	pub spawn_pitch: u8,
+	pub changed: bool,
 	data: Vec<u8>
 }
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -61,7 +64,8 @@ impl Level
 			spawn_y: 0,
 			spawn_z: 0,
 			spawn_yaw: 0,
-			spawn_pitch: 0
+			spawn_pitch: 0,
+			changed: false
 		}
 	}
 	pub fn generate(&mut self, size_x: i16, size_y: i16, size_z: i16, gen_type: GenerationType, seed: u64) -> Result<(), String>
@@ -371,13 +375,12 @@ impl Level
 				}
 			}
 		}
-		
 		self.reset_spawn();
 		Ok(())
 	}
-	pub fn load(&mut self) -> Result<(), String>
+	pub fn load_from(&mut self, path: String) -> Result<(), String>
 	{
-		if let Ok(mut file) = File::open(format!("{}.dat", self.name))
+		if let Ok(mut file) = File::open(path)
 		{
 			println!("loading level");
 			let mut buf = Vec::<u8>::new();
@@ -403,17 +406,43 @@ impl Level
 		}
 		Err("could not open level file for loading".to_string())
 	}
-	pub fn save(&self) -> Result<(), String>
+	pub fn load(&mut self) -> Result<(), String>
 	{
-		if let Ok(mut f) = File::create(format!("{}.dat", self.name))
+		self.load_from(format!("{}.dat", self.name))
+	}
+	pub fn save_to(&self, path: String) -> Result<(), String>
+	{
+		if let Ok(mut f) = File::create(&path)
 		{
-			println!("saving level");
+			println!("saving level {}", path);
 			if f.write_all(&self.get_gzip(SaveType::Disk)?).is_ok()
 			{
 				return Ok(());
 			}
 		}
-		Err(String::from("could not save level"))
+		Err(format!("could not save level {}", path))
+	}
+	pub fn save(&mut self) -> Result<(), String>
+	{
+		if self.changed
+		{
+			self.changed = false;
+			if self.copy_backup().is_err()
+			{
+				println!("could not backup previous world.");
+			}
+			self.save_to(format!("{}.dat", self.name))
+		}
+		else
+		{
+			Ok(())
+		}
+	}
+	pub fn copy_backup(&self) -> Result<u64, std::io::Error>
+	{
+		fs::create_dir_all("backup/")?;
+		println!("copying backup");
+		fs::copy(format!("{}.dat", self.name), format!("backup/{}-{}.dat", self.name, Local::now().format("%Y%m%d_%H%M%S").to_string()))
 	}
 	pub fn get_block(&self, x: i16, y: i16, z: i16) -> u8
 	{
@@ -423,6 +452,10 @@ impl Level
 	pub fn set_block(&mut self, x: i16, y: i16, z: i16, b: u8)
 	{
 		assert!(x >= 0 && y >= 0 && z >= 0 && x < self.size_x && y < self.size_y && z < self.size_z);
+		if !self.changed
+		{
+			self.changed = true;
+		}
 		self.data[x as usize + z as usize * self.size_x as usize + y as usize * self.size_x as usize * self.size_z as usize] = b;
 	}
 	pub fn place_block(&mut self, x: i16, mut y: i16, z: i16, mut b: u8) -> Vec<(i16,i16,i16,u8)>
