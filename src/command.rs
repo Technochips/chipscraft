@@ -1,3 +1,4 @@
+use crate::block::BLOCKS;
 use crate::client::ClientMode;
 use crate::server::Server;
 use std::collections::HashMap;
@@ -441,7 +442,7 @@ impl CommandList
 			usage: "",
 			ops_only: true,
 			unmuted_only: false,
-			unrestricted_only: true,
+			unrestricted_only: false,
 			run: |server, id, _, _|
 			{
 				if let Err(e) = server.reload_config()
@@ -453,6 +454,46 @@ impl CommandList
 					server.send_message(-1, id, "Configuration file was reloaded");
 					Ok(())
 				}
+			}
+		});
+		commands.register(Command
+		{
+			name: "cuboid",
+			desc: "Creates a cube",
+			usage: "<x1> <y1> <z1> <x2> <y2> <z2> <block>",
+			ops_only: true,
+			unmuted_only: false,
+			unrestricted_only: true,
+			run: |server, id, args, _|
+			{
+				let mut args = args.iter();
+				if let (Some(x1), Some(y1), Some(z1), Some(x2), Some(y2), Some(z2), Some(block)) = (args.next(), args.next(), args.next(), args.next(), args.next(), args.next(), args.next())
+				{
+					if let (Ok(x1), Ok(y1), Ok(z1), Ok(x2), Ok(y2), Ok(z2), Ok(block)) = (x1.parse::<i16>(), y1.parse::<i16>(), z1.parse::<i16>(), x2.parse::<i16>(), y2.parse::<i16>(), z2.parse::<i16>(), block.parse::<u8>())
+					{
+						if block >= BLOCKS.len() as u8
+						{
+							return Err("Invalid block ID.".to_string());
+						}
+						if x1 < 0 || x1 >= server.level.size_x || y1 < 0 || y1 >= server.level.size_y || z1 < 0 || z1 >= server.level.size_z
+						|| x2 < 0 || x2 >= server.level.size_x || y2 < 0 || y2 >= server.level.size_y || z2 < 0 || z2 >= server.level.size_z
+						{
+							return Err("Block out of bound.".to_string());
+						}
+						for x in i16::min(x1,x2)..=i16::max(x1,x2)
+						{
+							for y in i16::min(y1,y2)..=i16::max(y1,y2)
+							{
+								for z in i16::min(z1,z2)..=i16::max(z1,z2)
+								{
+									server.set_block(id, x, y, z, block, false);
+								}
+							}
+						}
+						return Ok(());
+					}
+				}
+				Err("Invalid arguments.".to_string())
 			}
 		});
 		commands

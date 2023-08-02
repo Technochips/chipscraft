@@ -85,7 +85,7 @@ impl Client
 						let server = server.clone();
 						tokio::spawn(async move
 							{
-								server.lock().await.set_block(id,x,y,z, if mode == 0 { 0 } else { block })
+								server.lock().await.set_block(id,x,y,z, if mode == 0 { 0 } else { block }, true)
 							});
 						true
 					}

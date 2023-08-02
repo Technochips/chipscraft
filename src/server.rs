@@ -184,7 +184,7 @@ impl Server
 		}
 		Err(SendError(packet))
 	}
-	pub fn set_block(&mut self, id: i8, x: i16, y: i16, z: i16, block: u8)
+	pub fn set_block(&mut self, id: i8, x: i16, y: i16, z: i16, block: u8, aware: bool)
 	{
 		let mut place_block = false;
 		if x >= 0 && y >= 0 && z >= 0 && x < self.level.size_x && y < self.level.size_y && z < self.level.size_z
@@ -212,7 +212,7 @@ impl Server
 				self.broadcast_packet(-1, Packet::SetBlock { x:xx, y:yy, z:zz, block:bblock });
 			}
 		}
-		if should_discard_original_placed_block
+		if should_discard_original_placed_block && aware
 		{
 			let _ = self.send_packet(id, Packet::SetBlock { x, y, z, block: self.level.get_block(x, y, z) });
 		}
