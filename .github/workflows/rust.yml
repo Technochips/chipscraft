@@ -6,50 +6,49 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-ubuntu:
-    name: Build on Ubuntu
-    runs-on: [ubuntu-latest]
+  build:
+    name: Build ${{matrix.arch}}-${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        target: [pc-windows-msvc, unknown-linux-gnu]
+        arch: [x86_64, i686]
+        include:
+          - os: windows-latest
+            target: pc-windows-msvc
+          - os: ubuntu-latest
+            target: unknown-linux-gnu
+          - extension: ".exe"
+            target: pc-windows-msvc
+          - extension: ""
+            target: unknown-linux-gnu
 
     steps:
+    - name: APT Cache
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      if: matrix.os == 'ubuntu-latest' && matrix.arch != 'x86_64'
+      with:
+        packages: gcc-multilib
+        version: 1.0
     - name: Checkout
       uses: actions/checkout@v3
-    - name: Cache
+    - name: Rust Cache
       uses: actions/cache@v3
       with:
         path: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
+        key: ${{matrix.arch}}-${{matrix.target}}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{matrix.arch}}-${{matrix.target}}-cargo-
     - name: Build
-      run: cargo build --verbose --release
+      run: |
+        rustup target add ${{matrix.arch}}-${{matrix.target}}
+        rustup set default-host ${{matrix.arch}}-${{matrix.target}}
+        cargo build --verbose --release
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
-        name: chipscraft-${{ runner.os }}
-        path: target/release/chipscraft
-        
-  build-windows:
-    name: Build on Windows
-    runs-on: [windows-latest]
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Cache
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
-    - name: Build
-      run: cargo build --verbose --release
-    - name: Upload
-      uses: actions/upload-artifact@v3
-      with:
-        name: chipscraft-${{ runner.os }}
-        path: target/release/chipscraft.exe
+        name: chipscraft-${{matrix.arch}}-${{matrix.target}}
+        path: target/release/chipscraft${{matrix.extension}}
