@@ -6,6 +6,7 @@ use crate::packet::Packet;
 use crate::server::Server;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::TcpStream;
@@ -44,6 +45,9 @@ pub struct Client
 	pub mode: ClientMode,
 	pub packet_sender: UnboundedSender<Packet>,
 }
+
+const TIMEOUT: Duration = Duration::from_secs(10);
+
 impl Client
 {
 	pub async fn sender_client(mut recv: UnboundedReceiver<Packet>, write: Arc<Mutex<OwnedWriteHalf>>) -> String
@@ -54,76 +58,90 @@ impl Client
 			{
 				return reason;
 			}
-			if write.lock().await.write_packet(packet).await.is_err()
+			if let Ok(result) = tokio::time::timeout(TIMEOUT, write.lock().await.write_packet(packet)).await
 			{
-				return "Connection closed.".to_string();
+				if result.is_err()
+				{
+					return "Connection closed.".to_string();
+				}
+			}
+			else
+			{
+				return "Timed out".to_string();
 			}
 		}
 		"No more packets to send... server most likely crashed.".to_string()
 	}
 	pub async fn receiver_client(mut read: OwnedReadHalf, server: Arc<Mutex<Server>>, id: i8, username: String, ip: SocketAddr) -> String
 	{
-		while let Ok(packet) = read.read_packet().await
+		while let Ok(result) = tokio::time::timeout(TIMEOUT, read.read_packet()).await
 		{
-			if !match packet
+			if let Ok(packet) = result
 			{
-				Packet::PlaceBlock { x, y, z, block, mode } =>
+				if !match packet
 				{
-					let server = server.clone();
-					tokio::spawn(async move
-						{
-							server.lock().await.set_block(id,x,y,z, if mode == 0 { 0 } else { block })
-						});
-					true
-				}
-				Packet::SetPosAndLook { id: _, x, y, z, yaw, pitch } =>
-				{
-					let server = server.clone();
-					tokio::spawn(async move
+					Packet::PlaceBlock { x, y, z, block, mode } =>
 					{
-						server.lock().await.move_player(id, id, x, y, z, yaw, pitch);
-					});
-					true
-				}
-				Packet::Message { id: _, message } =>
-				{
-					let server = server.clone();
+						let server = server.clone();
+						tokio::spawn(async move
+							{
+								server.lock().await.set_block(id,x,y,z, if mode == 0 { 0 } else { block })
+							});
+						true
+					}
+					Packet::SetPosAndLook { id: _, x, y, z, yaw, pitch } =>
+					{
+						let server = server.clone();
+						tokio::spawn(async move
+						{
+							server.lock().await.move_player(id, id, x, y, z, yaw, pitch);
+						});
+						true
+					}
+					Packet::Message { id: _, message } =>
+					{
+						let server = server.clone();
 
-					// check if first char is /
-					if message.len() > 0 && &message[0..1] == "/"
-					{
-						tokio::spawn(async move
+						// check if first char is /
+						if message.len() > 0 && &message[0..1] == "/"
 						{
-							let mut split = message.split(' ');
-							let command = split.next().unwrap()[1..].to_lowercase();
-							server.lock().await.command(id, command, split.collect());
-						});
-					}
-					else if server.lock().await.config.user_data.muted.contains(&username, &ip.ip())
-					{
-						println!("{}:<{}> (muted) {}", id, username, message);
-						tokio::spawn(async move
+							tokio::spawn(async move
+							{
+								let mut split = message.split(' ');
+								let command = split.next().unwrap()[1..].to_lowercase();
+								server.lock().await.command(id, command, split.collect());
+							});
+						}
+						else if server.lock().await.config.user_data.muted.contains(&username, &ip.ip())
 						{
-							server.lock().await.send_message(-1, id, "You have been muted, you cannot send any messages.");
-						});
-					}
-					else
-					{
-						let username = username.clone();
-						tokio::spawn(async move
+							println!("{}:<{}> (muted) {}", id, username, message);
+							tokio::spawn(async move
+							{
+								server.lock().await.send_message(-1, id, "You have been muted, you cannot send any messages.");
+							});
+						}
+						else
 						{
-							server.lock().await.broadcast_message(id, &format!("<{}> {}", username, message));
-						});
+							let username = username.clone();
+							tokio::spawn(async move
+							{
+								server.lock().await.broadcast_message(id, &format!("<{}> {}", username, message));
+							});
+						}
+						true
 					}
-					true
+					_ => false
 				}
-				_ => false
+				{
+					return "Invalid packet received.".to_string();
+				}
 			}
+			else
 			{
-				return "Invalid packet received.".to_string();
+				return "Connection closed".to_string();
 			}
 		}
-		"Connection closed".to_string()
+		"Timed out".to_string()
 	}
 	pub async fn send_level(stream: &mut TcpStream, server: &Arc<Mutex<Server>>) -> Option<()>
 	{

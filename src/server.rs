@@ -157,6 +157,7 @@ impl Server
 	pub fn kick(&mut self, id: i8, reason: String)
 	{
 		let _ = self.send_packet(id, Packet::Disconnect { reason });
+		self.disconnected(id);
 	}
 	pub fn send_packet(&mut self, cid: i8, packet: Packet) -> Result<(), SendError<Packet>>
 	{
