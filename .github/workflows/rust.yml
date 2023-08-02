@@ -37,18 +37,16 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
+          ~/.cargo/registry/
           target/
         key: ${{matrix.arch}}-${{matrix.target}}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: ${{matrix.arch}}-${{matrix.target}}-cargo-
     - name: Build
       run: |
         rustup target add ${{matrix.arch}}-${{matrix.target}}
-        rustup set default-host ${{matrix.arch}}-${{matrix.target}}
-        cargo build --verbose --release
+        cargo build --verbose --release --target=${{matrix.arch}}-${{matrix.target}}
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
         name: chipscraft-${{matrix.arch}}-${{matrix.target}}
-        path: target/release/chipscraft${{matrix.extension}}
+        path: target/${{matrix.arch}}-${{matrix.target}}/release/chipscraft${{matrix.extension}}
