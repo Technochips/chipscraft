@@ -62,14 +62,14 @@ pub fn wrap_and_clean(message: &str, default_mode: char) -> Vec<String>
 							split_at = None;
 						}
 						output.push(string);
-						string = String::new();
+						string = " >".to_string();
 						spaces = 0;
 						if new_mode.is_none()
 						{
 							new_mode = Some(mode);
 						}
 						mode = default_mode;
-						new_len = if new_mode.is_some_and(|c| c != mode) { 3 } else { 1 };
+						new_len = 2;
 						continue;
 					}
 					else
